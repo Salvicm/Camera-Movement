@@ -1,0 +1,151 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using DG.Tweening;
+
+public class PlayerEnvironmentEventManager: MonoBehaviour
+{
+    Collider2D detector;
+    Rigidbody2D parentBody;
+    BoxCollider2D colliderBox;
+    enum DIRECTION { UP, DOWN, LEFT, RIGHT, NONE};
+    DIRECTION comingFrom;
+    public PlayerMovement playerMovement;
+
+   
+    private float yOffset;
+    private float xOffset;
+    private float xSize;
+    private float ySize;
+
+    private Vector3 playerReturn;
+    private Vector3 playerScale;
+   
+    private float cameraMovTime = 0.35f;
+
+
+    // Initialize variables
+    private void Start()
+    {
+        detector = GetComponent<Collider2D>();
+        parentBody = GetComponentInParent<Rigidbody2D>();
+        comingFrom = DIRECTION.NONE;
+    }
+
+    private void OnTriggerEnter2D(Collider2D collider)
+    {
+        colliderBox = collider.GetComponent<BoxCollider2D>();
+        float crossingTime;
+        Vector2 playerDestination;
+
+        // Depending on the room tag it does one thing or another  
+        // For paths, moves the player to the other side 
+        // For rooms, it sets the camera
+        
+        switch (collider.tag)
+        {
+            case "SmallRoom":
+                Vector3 cameraDestination = new Vector3(colliderBox.transform.position.x, colliderBox.transform.position.y, Camera.main.transform.position.z);
+                Camera.main.transform.DOMove(cameraDestination, cameraMovTime);
+                break;
+            case "BigRoom":
+                yOffset = Camera.main.orthographicSize; // Makes sure the camera doesn't go farther than half it's size
+                xOffset = ((Camera.main.orthographicSize) * Camera.main.aspect) ;
+                xSize = (colliderBox.size.x * colliderBox.transform.localScale.x) / 2;
+                ySize = (colliderBox.size.y * colliderBox.transform.localScale.y) / 2;
+
+                switch (comingFrom)
+                {
+                    // Based on direction sets a movement or another
+                    case DIRECTION.UP:
+
+                        cameraDestination = new Vector3(parentBody.transform.position.x, collider.transform.position.y + ySize - yOffset, Camera.main.transform.position.z);
+                        Camera.main.transform.DOMove(cameraDestination, cameraMovTime);
+                        break;
+                    case DIRECTION.DOWN:
+
+                        cameraDestination = new Vector3(parentBody.transform.position.x, collider.transform.position.y - ySize + yOffset, Camera.main.transform.position.z);
+                        Camera.main.transform.DOMove(cameraDestination, cameraMovTime);
+                        break;
+                    case DIRECTION.LEFT:
+
+                        cameraDestination = new Vector3(collider.transform.position.x - xSize + xOffset, parentBody.transform.position.y, Camera.main.transform.position.z);
+                        Camera.main.transform.DOMove(cameraDestination, cameraMovTime);
+                        break;
+                    case DIRECTION.RIGHT:
+
+                        cameraDestination = new Vector3(collider.transform.position.x + xSize - xOffset, parentBody.transform.position.y, Camera.main.transform.position.z);
+                        Camera.main.transform.DOMove(cameraDestination, cameraMovTime);
+                        break;
+                    case DIRECTION.NONE:
+                        break;
+                }
+                comingFrom = DIRECTION.NONE;
+                break;
+            case "HorizontalPath":
+                // Get position of detector against trigger, then set movement direction
+                crossingTime = colliderBox.size.x / (playerMovement.originalSpeed * 0.5f);
+                if (collider.transform.position.x < detector.transform.position.x)
+                {
+                    comingFrom = DIRECTION.RIGHT;
+                    playerStats.knockback = false;
+                    playerDestination = new Vector2((colliderBox.transform.position.x - (colliderBox.size.x / 2f) * colliderBox.transform.localScale.x) - 1, colliderBox.transform.position.y);
+                    parentBody.transform.DOMove(playerDestination, crossingTime);
+                }
+                else if (collider.transform.position.x > detector.transform.position.x)
+                {
+                    comingFrom = DIRECTION.LEFT;
+                    playerStats.knockback = false;
+                    playerDestination = new Vector2((colliderBox.transform.position.x + (colliderBox.size.x / 2f) * colliderBox.transform.localScale.x) + 1, colliderBox.transform.position.y);
+                    parentBody.transform.DOMove(playerDestination, crossingTime);
+                }
+                break;
+
+            case "VerticalPath":
+                // Get position of detector against trigger, then set movement direction
+                crossingTime = colliderBox.size.y / (playerMovement.originalSpeed * 0.5f);
+                if (collider.transform.position.y < detector.transform.position.y)
+                {
+                    comingFrom = DIRECTION.UP;
+                    playerStats.knockback = false;
+                    playerDestination = new Vector2(colliderBox.transform.position.x, (colliderBox.transform.position.y - (colliderBox.size.y / 2f) * colliderBox.transform.localScale.y) - 1);
+                    parentBody.transform.DOMove(playerDestination, crossingTime);
+                }
+                else if (collider.transform.position.y > detector.transform.position.y)
+                {
+                    comingFrom = DIRECTION.DOWN;
+                    playerStats.knockback = false;
+                    playerDestination = new Vector2(colliderBox.transform.position.x, (colliderBox.transform.position.y + (colliderBox.size.y / 2f) * colliderBox.transform.localScale.y) + 1);
+                    parentBody.transform.DOMove(playerDestination, crossingTime);
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    
+
+    private void OnTriggerStay2D(Collider2D collider)
+    {
+        switch (collider.tag) // Using a switch here for the future when we add falling through the floor
+        {
+            case "BigRoom":
+                colliderBox = collider.GetComponent<BoxCollider2D>();
+                                
+                    // If player is in X limits, move X
+                    if ((parentBody.transform.position.x >= colliderBox.transform.position.x - xSize + xOffset) && (parentBody.transform.position.x <= colliderBox.transform.position.x + xSize - xOffset))
+                    {
+                        Camera.main.transform.position = new Vector3(parentBody.transform.position.x, Camera.main.transform.position.y, Camera.main.transform.position.z);
+                    }
+                    // If player is in Y limits, move Y
+                    if ((parentBody.transform.position.y >= colliderBox.transform.position.y - ySize + yOffset) && (parentBody.transform.position.y <= colliderBox.transform.position.y + ySize - yOffset))
+                    {
+                        Camera.main.transform.position = new Vector3(Camera.main.transform.position.x, parentBody.transform.position.y, Camera.main.transform.position.z);
+                    }
+                
+                break;
+            default:
+                break;
+        }
+    }
+}
